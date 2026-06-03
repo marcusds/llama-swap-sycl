@@ -22,6 +22,14 @@ on:
         type: choice
         options: ["ON", "OFF"]
         default: "ON"
+      oneapi_version:
+        description: "intel/deep-learning-essentials base image tag"
+        default: "2025.3.3-0-devel-ubuntu24.04"
+        required: false
+      image_name:
+        description: "GHCR package name to publish to (use a different name for experimental builds, e.g. llama-swap-sycl-next)"
+        default: "llama-swap-sycl"
+        required: false
   schedule:
     # Mondays 06:00 UTC — track the latest llama.cpp release.
     - cron: "0 6 * * 1"
@@ -33,11 +41,10 @@ on:
       - ".github/workflows/build.yml"
 
 concurrency:
-  group: build-${{ github.ref }}
+  # One in-flight build per (branch, image name) — experimental image_name
+  # builds run alongside the default instead of cancelling it.
+  group: build-${{ github.ref }}-${{ github.event.inputs.image_name || 'llama-swap-sycl' }}
   cancel-in-progress: true
-
-env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/llama-swap-sycl
 
 jobs:
   build:
@@ -73,10 +80,14 @@ jobs:
             LS=$(gh api repos/mostlygeek/llama-swap/releases/latest --jq .tag_name)
           fi
           LS="${LS#v}"
+          ONEAPI="${{ github.event.inputs.oneapi_version || '2025.3.3-0-devel-ubuntu24.04' }}"
+          IMG="${{ github.event.inputs.image_name || 'llama-swap-sycl' }}"
           echo "llamacpp_ref=$REF" >> "$GITHUB_OUTPUT"
           echo "ls_ver=$LS"        >> "$GITHUB_OUTPUT"
+          echo "oneapi=$ONEAPI"    >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${{ github.repository_owner }}/$IMG" >> "$GITHUB_OUTPUT"
           echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-          echo "### Building llama.cpp \`$REF\` + llama-swap \`$LS\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Building \`$IMG\` — llama.cpp \`$REF\` + llama-swap \`$LS\` on oneAPI \`$ONEAPI\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -95,13 +106,14 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:${{ steps.ver.outputs.llamacpp_ref }}
-            ${{ env.IMAGE }}:${{ steps.ver.outputs.llamacpp_ref }}-ls${{ steps.ver.outputs.ls_ver }}
+            ${{ steps.ver.outputs.image }}:latest
+            ${{ steps.ver.outputs.image }}:${{ steps.ver.outputs.llamacpp_ref }}
+            ${{ steps.ver.outputs.image }}:${{ steps.ver.outputs.llamacpp_ref }}-ls${{ steps.ver.outputs.ls_ver }}
           build-args: |
             LLAMACPP_REF=${{ steps.ver.outputs.llamacpp_ref }}
             LS_VER=${{ steps.ver.outputs.ls_ver }}
             GGML_SYCL_F16=${{ github.event.inputs.sycl_f16 || 'ON' }}
+            ONEAPI_VERSION=${{ steps.ver.outputs.oneapi }}
             BUILD_DATE=${{ steps.ver.outputs.build_date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
