@@ -1,0 +1,107 @@
+name: build
+
+# Builds llama-swap + llama.cpp (Intel SYCL) from source and pushes to GHCR.
+#
+#   - Weekly cron  -> rebuilds against the latest llama.cpp release.
+#   - Manual run   -> lets you pin a specific llama.cpp ref / llama-swap version.
+#   - Push to main -> rebuilds when the Dockerfile or this workflow change.
+
+on:
+  workflow_dispatch:
+    inputs:
+      llamacpp_ref:
+        description: "llama.cpp git ref to build (tag like b9495, a commit sha, a branch, or 'latest' release)"
+        default: "latest"
+        required: false
+      llama_swap_version:
+        description: "llama-swap release to bundle ('latest' or a version like 222)"
+        default: "latest"
+        required: false
+      sycl_f16:
+        description: "Enable GGML_SYCL_F16 half-precision kernels"
+        type: choice
+        options: ["ON", "OFF"]
+        default: "ON"
+  schedule:
+    # Mondays 06:00 UTC — track the latest llama.cpp release.
+    - cron: "0 6 * * 1"
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - "config.example.yaml"
+      - ".github/workflows/build.yml"
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/llama-swap-sycl
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The oneAPI base image + a full SYCL compile need more than the
+      # default runner disk; reclaim ~25-30 GB before building.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          large-packages: false
+          docker-images: false
+
+      - name: Resolve versions
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REF="${{ github.event.inputs.llamacpp_ref || 'latest' }}"
+          if [ "$REF" = "latest" ] || [ -z "$REF" ]; then
+            REF=$(gh api repos/ggml-org/llama.cpp/releases/latest --jq .tag_name)
+          fi
+          LS="${{ github.event.inputs.llama_swap_version || 'latest' }}"
+          if [ "$LS" = "latest" ] || [ -z "$LS" ]; then
+            LS=$(gh api repos/mostlygeek/llama-swap/releases/latest --jq .tag_name)
+          fi
+          LS="${LS#v}"
+          echo "llamacpp_ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "ls_ver=$LS"        >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          echo "### Building llama.cpp \`$REF\` + llama-swap \`$LS\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ steps.ver.outputs.llamacpp_ref }}
+            ${{ env.IMAGE }}:${{ steps.ver.outputs.llamacpp_ref }}-ls${{ steps.ver.outputs.ls_ver }}
+          build-args: |
+            LLAMACPP_REF=${{ steps.ver.outputs.llamacpp_ref }}
+            LS_VER=${{ steps.ver.outputs.ls_ver }}
+            GGML_SYCL_F16=${{ github.event.inputs.sycl_f16 || 'ON' }}
+            BUILD_DATE=${{ steps.ver.outputs.build_date }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

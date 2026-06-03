@@ -1,0 +1,18 @@
+# Minimal llama-swap config baked into the image as a fallback.
+# In production, bind-mount your real config over /app/config.yaml
+# (see compose.example.yaml). Models call the bundled /app/llama-server.
+healthCheckTimeout: 120
+
+models:
+  example-qwen:
+    cmd: |-
+      /app/llama-server
+        --host 0.0.0.0
+        --port ${PORT}
+        --no-webui
+        --model /models/your-model.gguf
+        --ctx-size 32768
+        --n-gpu-layers -1
+        --flash-attn on
+        --jinja
+    ttl: 1200

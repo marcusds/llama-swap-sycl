@@ -1,0 +1,6 @@
+# local config / secrets — keep the example, ignore real ones
+/config/
+config.yaml
+!config.example.yaml
+api-keys.txt
+*.gguf

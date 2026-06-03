@@ -1,0 +1,31 @@
+# Drop-in replacement for the mostlygeek/llama-swap:intel service.
+# Same device mappings / env as the prebuilt image — only the image changes.
+name: llamacpp
+services:
+  llama-swap:
+    image: ghcr.io/marcusds/llama-swap-sycl:latest
+    restart: unless-stopped
+    ports:
+      - "8083:8080"
+    volumes:
+      - /mnt/storage1/workspace/models/:/models
+      - ./config:/app/config
+    devices:
+      - source: /dev/dri/by-path/pci-0000:03:00.0-render
+        target: /dev/dri/renderD129
+        permissions: rwm
+      - source: /dev/dri/by-path/pci-0000:03:00.0-card
+        target: /dev/dri/card1
+        permissions: rwm
+    environment:
+      - RUST_LOG=info
+      - SYCL_DEVICE_FILTER=level_zero:gpu
+      - ONEAPI_DEVICE_SELECTOR=level_zero:gpu
+      - LIBVA_DRIVER_NAME=iHD
+      - ZES_ENABLE_SYSMAN=1
+    group_add:
+      - video
+      - "993"
+    command: --config /app/config/config.yaml --listen 0.0.0.0:8080
+    stdin_open: true
+    tty: true
