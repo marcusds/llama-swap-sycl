@@ -38,8 +38,8 @@ on:
         default: "llama-swap-sycl"
         required: false
   schedule:
-    # Mondays 06:00 UTC — track the latest llama.cpp release.
-    - cron: "0 6 * * 1"
+    # Every 2 days at 06:00 UTC — track the latest llama.cpp release.
+    - cron: "0 6 */2 * *"
   push:
     branches: [main]
     paths:
