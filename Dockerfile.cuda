@@ -13,6 +13,9 @@ ARG CUDA_VERSION=13.3.0
 FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu24.04 AS build
 
 ARG LLAMACPP_REF=master
+# Leave empty to let cmake auto-detect all supported architectures.
+# Set to e.g. "100" to target only Blackwell (SM 10.0).
+ARG CUDA_ARCHITECTURES=""
 
 RUN apt-get update && \
     apt-get install -y git cmake libssl-dev wget ca-certificates build-essential && \
@@ -29,12 +32,15 @@ RUN git init -q && \
 
 # Dynamic backends (BACKEND_DL) so the CUDA + all CPU variants are loadable
 # .so files alongside the binary, matching the upstream server image layout.
-RUN cmake -B build \
+RUN ARCH_FLAG="" && \
+    [ -n "${CUDA_ARCHITECTURES}" ] && ARCH_FLAG="-DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHITECTURES}" ; \
+    cmake -B build \
         -DGGML_NATIVE=OFF \
         -DGGML_CUDA=ON \
         -DGGML_BACKEND_DL=ON \
         -DGGML_CPU_ALL_VARIANTS=ON \
-        -DLLAMA_BUILD_TESTS=OFF && \
+        -DLLAMA_BUILD_TESTS=OFF \
+        ${ARCH_FLAG} && \
     cmake --build build --config Release -j"$(nproc)"
 
 # Collect the binary + every shared lib it dlopens into one dir.
