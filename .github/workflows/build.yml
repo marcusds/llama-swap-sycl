@@ -11,7 +11,7 @@ name: build
 #   - llama-swap-sycl-2026      Intel SYCL on oneAPI 2026.0.0 (latest)
 #   - llama-swap-cuda13         NVIDIA CUDA 13.3 (amd64, all GPU architectures)
 #   - llama-swap-cuda13-arm64   NVIDIA CUDA 13.3 (arm64, all GPU architectures)
-#   - llama-swap-blackwell      NVIDIA CUDA 13.3 (arm64, Blackwell SM 10.0 only — DGX Spark)
+#   - llama-swap-cuda13-blackwell-arm64  NVIDIA CUDA 13.3 (arm64, Blackwell SM 10.0 only — DGX Spark)
 #
 # A manual run with a custom image_name (e.g. llama-swap-sycl-next) bypasses the
 # fleet and does a single one-off SYCL build using the oneapi_version input.
@@ -78,7 +78,7 @@ jobs:
               {"image":"llama-swap-sycl-2026",    "oneapi":"2026.0.0-devel-ubuntu24.04",  "cuda":"",     "cuda_archs":"",   "dockerfile":"Dockerfile",      "runner":"ubuntu-latest"},
               {"image":"llama-swap-cuda13",       "oneapi":"",                             "cuda":"13.3.0","cuda_archs":"",  "dockerfile":"Dockerfile.cuda","runner":"ubuntu-latest"},
               {"image":"llama-swap-cuda13-arm64", "oneapi":"",                             "cuda":"13.3.0","cuda_archs":"",  "dockerfile":"Dockerfile.cuda","runner":"ubuntu-24.04-arm"},
-              {"image":"llama-swap-blackwell",    "oneapi":"",                             "cuda":"13.3.0","cuda_archs":"100","dockerfile":"Dockerfile.cuda","runner":"ubuntu-24.04-arm"}
+              {"image":"llama-swap-cuda13-blackwell-arm64","oneapi":"","cuda":"13.3.0","cuda_archs":"100","dockerfile":"Dockerfile.cuda","runner":"ubuntu-24.04-arm"}
             ]'
             builds=$(echo "$builds" | jq -c .)
           fi
