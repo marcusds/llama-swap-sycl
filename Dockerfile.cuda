@@ -37,6 +37,7 @@ RUN ARCH_FLAG="" && \
     cmake -B build \
         -DGGML_NATIVE=OFF \
         -DGGML_CUDA=ON \
+        -DGGML_CUDA_FA_ALL_QUANTS=ON \
         -DGGML_BACKEND_DL=ON \
         -DLLAMA_BUILD_TESTS=OFF \
         ${ARCH_FLAG} && \
